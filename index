@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Translator | Bi-directional</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                        },
+                        malayalam: {
+                            500: '#10b981',
+                            600: '#059669',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .pulse-ring {
+            animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            80%, 100% { transform: scale(1.5); opacity: 0; }
+        }
+        
+        /* Hide scrollbar */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col items-center justify-center p-4 antialiased text-slate-800">
+
+    <!-- Error Toast -->
+    <div id="error-toast" class="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg font-medium text-sm transition-transform duration-300 -translate-y-24 z-50 flex items-center gap-3 max-w-sm w-full">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span id="error-message">Error occurred.</span>
+        <button onclick="hideError()" class="ml-auto focus:outline-none hover:text-red-200">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+    </div>
+
+    <!-- Main App Container -->
+    <main class="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden relative flex flex-col h-[700px] max-h-[90vh]">
+        
+        <!-- Header -->
+        <header class="bg-slate-800 text-white p-5 flex justify-center items-center relative shrink-0">
+            <div class="flex items-center gap-2 font-semibold text-lg">
+                <i class="fa-solid fa-language text-brand-500"></i>
+                <span id="app-title">Hindi to Malayalam</span>
+            </div>
+        </header>
+
+        <!-- Translation Area -->
+        <!-- Translation Area -->
+        <div class="flex-1 flex flex-col overflow-hidden bg-slate-50">
+            
+            <!-- Source Section (Input) -->
+            <div class="flex-1 p-6 flex flex-col relative bg-white m-4 rounded-2xl shadow-sm border border-slate-100 overflow-y-auto">
+                <div class="flex justify-between items-center mb-3">
+                    <span id="source-label" class="text-xs font-bold uppercase tracking-wider text-slate-400">Hindi (Input)</span>
+                    <i class="fa-solid fa-microphone-lines text-slate-300"></i>
+                </div>
+                <p id="source-text" class="text-xl text-slate-700 font-medium leading-relaxed empty:before:content-['...'] empty:before:text-slate-300">
+                    <!-- Source text will appear here -->
+                </p>
+            </div>
+
+            <!-- Swap Button -->
+            <div class="flex justify-center -my-2 relative z-10 shrink-0">
+                <button onclick="swapLanguages()" class="w-10 h-10 bg-slate-800 hover:bg-slate-700 transition-transform hover:scale-110 rounded-full flex items-center justify-center text-white shadow-md border-4 border-slate-50 focus:outline-none z-20" title="Swap Languages">
+                    <i class="fa-solid fa-arrows-up-down"></i>
+                </button>
+            </div>
+
+            <!-- Target Section (Output) -->
+            <div class="flex-1 p-6 flex flex-col relative bg-malayalam-50/30 m-4 rounded-2xl shadow-sm border border-malayalam-100 overflow-y-auto">
+                <div class="flex justify-between items-center mb-3">
+                    <span id="target-label" class="text-xs font-bold uppercase tracking-wider text-malayalam-600">Malayalam (Output)</span>
+                    <button id="play-btn" onclick="playCurrentTranslation()" class="text-malayalam-500 hover:text-malayalam-700 bg-white w-8 h-8 rounded-full shadow flex items-center justify-center transition-colors focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fa-solid fa-volume-high"></i>
+                    </button>
+                </div>
+                <p id="target-text" class="text-2xl text-slate-800 font-semibold leading-relaxed empty:before:content-['...'] empty:before:text-slate-300">
+                    <!-- Target text will appear here -->
+                </p>
+            </div>
+        </div>
+
+        <!-- Controls Footer -->
+        <div class="bg-white p-6 rounded-t-3xl shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] flex flex-col items-center justify-center shrink-0 border-t border-slate-100">
+            <p id="status-text" class="text-sm text-slate-500 mb-4 font-medium h-5">Tap mic to speak Hindi</p>
+            
+            <div class="relative w-20 h-20 flex items-center justify-center">
+                <!-- Pulsing Background (active when recording) -->
+                <div id="mic-pulse" class="absolute inset-0 bg-brand-500 rounded-full opacity-0"></div>
+                
+                <!-- Mic Button -->
+                <button id="mic-btn" onclick="toggleRecording()" class="absolute inset-2 rounded-full bg-brand-500 hover:bg-brand-600 text-white flex items-center justify-center shadow-lg transform transition-all active:scale-95 focus:outline-none z-10">
+                    <i id="mic-icon" class="fa-solid fa-microphone text-2xl"></i>
+                </button>
+            </div>
+        </div>
+        
+    </main>
+
+    <script>
+        // --- State ---
+        let isRecording = false;
+        let recognition = null;
+        let currentTargetText = "";
+        
+        let sourceLang = 'hi';
+        let targetLang = 'ml';
+        let sourceLocale = 'hi-IN';
+        let targetLocale = 'ml-IN';
+        let sourceName = 'Hindi';
+        let targetName = 'Malayalam';
+
+        // --- Pre-load Speech Synthesis Voices ---
+        if ('speechSynthesis' in window) {
+            // Chrome/Safari load voices asynchronously, this ensures they are ready
+            window.speechSynthesis.onvoiceschanged = () => {
+                window.speechSynthesis.getVoices();
+            };
+        }
+
+        // --- DOM Elements ---
+        const sourceTextEl = document.getElementById('source-text');
+        const targetTextEl = document.getElementById('target-text');
+        const sourceLabelEl = document.getElementById('source-label');
+        const targetLabelEl = document.getElementById('target-label');
+        const appTitleEl = document.getElementById('app-title');
+        const statusTextEl = document.getElementById('status-text');
+        const micBtn = document.getElementById('mic-btn');
+        const micIcon = document.getElementById('mic-icon');
+        const micPulse = document.getElementById('mic-pulse');
+        const errorToast = document.getElementById('error-toast');
+        const errorMessage = document.getElementById('error-message');
+        const playBtn = document.getElementById('play-btn');
+
+        // --- Initialize Speech Recognition ---
+        if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            
+            // Set language to dynamic source locale
+            recognition.lang = sourceLocale;
+            recognition.continuous = false;
+            recognition.interimResults = true;
+
+            recognition.onstart = function() {
+                isRecording = true;
+                updateUIState('listening');
+                sourceTextEl.innerText = "";
+                targetTextEl.innerText = "";
+                currentTargetText = "";
+            };
+
+            recognition.onresult = function(event) {
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+                
+                // Display text as it is being spoken
+                sourceTextEl.innerText = finalTranscript || interimTranscript;
+                
+                // Trigger translation only on the final recognized sentence
+                if (finalTranscript) {
+                    processTranslation(finalTranscript);
+                }
+            };
+
+            recognition.onerror = function(event) {
+                console.error('Speech recognition error', event.error);
+                if (event.error !== 'no-speech') {
+                    showError('Microphone error: ' + event.error);
+                }
+                stopRecording();
+            };
+
+            recognition.onend = function() {
+                isRecording = false;
+                if (statusTextEl.innerText === 'Listening...') {
+                    updateUIState('idle');
+                }
+            };
+        } else {
+            showError("Speech Recognition is not supported in this browser. Please use Chrome or Edge.");
+            micBtn.disabled = true;
+            micBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+
+        // --- Core Functions ---
+
+        function toggleRecording() {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        }
+
+        function startRecording() {
+            try {
+                // Warm up speech synthesis on direct user interaction to bypass mobile browser auto-play restrictions
+                if ('speechSynthesis' in window) {
+                    const warmup = new SpeechSynthesisUtterance('');
+                    warmup.volume = 0;
+                    window.speechSynthesis.speak(warmup);
+                }
+                
+                recognition.start();
+            } catch (e) {
+                console.error(e);
+                showError("Could not start microphone. Please ensure permissions are granted.");
+            }
+        }
+
+        function stopRecording() {
+            if (recognition) {
+                recognition.stop();
+            }
+            isRecording = false;
+            updateUIState('idle');
+        }
+
+        function swapLanguages() {
+            // Swap variables
+            [sourceLang, targetLang] = [targetLang, sourceLang];
+            [sourceLocale, targetLocale] = [targetLocale, sourceLocale];
+            [sourceName, targetName] = [targetName, sourceName];
+
+            // Update UI Labels
+            sourceLabelEl.innerText = `${sourceName} (Input)`;
+            targetLabelEl.innerText = `${targetName} (Output)`;
+            appTitleEl.innerText = `${sourceName} to ${targetName}`;
+            
+            // Clear text
+            sourceTextEl.innerText = "";
+            targetTextEl.innerText = "";
+            currentTargetText = "";
+            
+            // Update speech recognition language
+            if (recognition) {
+                recognition.lang = sourceLocale;
+            }
+            
+            updateUIState('idle');
+        }
+
+        async function processTranslation(text) {
+            updateUIState('translating');
+            
+            try {
+                // Using MyMemory translation API (Free, no key required for basic usage)
+                const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceLang}|${targetLang}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data && data.responseData && data.responseData.translatedText) {
+                    currentTargetText = data.responseData.translatedText;
+                    targetTextEl.innerText = currentTargetText;
+                    speakTarget(currentTargetText);
+                } else {
+                    throw new Error("Invalid translation response");
+                }
+            } catch (error) {
+                showError("Translation failed. Please try again.");
+                updateUIState('idle');
+            }
+        }
+
+        function speakTarget(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // Cancel any ongoing speech
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                // Set language to target
+                utterance.lang = targetLocale; 
+                utterance.volume = 1.0; // Ensure volume is maxed out
+                utterance.rate = 0.9;   // Slightly slower for better pronunciation clarity
+                
+                // Explicitly try to find a native voice for the target language
+                const voices = window.speechSynthesis.getVoices();
+                const voice = voices.find(v => v.lang.replace('_', '-').toLowerCase().includes(targetLocale.toLowerCase()) || 
+                                               v.lang.replace('_', '-').toLowerCase().includes(targetLang.toLowerCase()));
+                if (voice) {
+                    utterance.voice = voice;
+                }
+                
+                utterance.onstart = () => updateUIState('speaking');
+                utterance.onend = () => updateUIState('idle');
+                utterance.onerror = (e) => {
+                    console.error("Speech Synthesis Error:", e);
+                    updateUIState('idle');
+                };
+                
+                window.speechSynthesis.speak(utterance);
+            } else {
+                showError("Text-to-Speech is not supported in this browser.");
+                updateUIState('idle');
+            }
+        }
+
+        function playCurrentTranslation() {
+            if (currentTargetText) {
+                speakTarget(currentTargetText);
+            }
+        }
+
+        // --- UI Updaters ---
+
+        function updateUIState(state) {
+            // Reset classes
+            micBtn.classList.remove('bg-red-500', 'hover:bg-red-600', 'bg-brand-500', 'hover:bg-brand-600', 'bg-slate-400');
+            micPulse.classList.remove('pulse-ring', 'bg-red-500');
+            micIcon.classList.remove('fa-microphone', 'fa-stop', 'fa-hourglass-half');
+            playBtn.disabled = !currentTargetText;
+
+            switch (state) {
+                case 'idle':
+                    statusTextEl.innerText = `Tap mic to speak ${sourceName}`;
+                    micBtn.classList.add('bg-brand-500', 'hover:bg-brand-600');
+                    micIcon.classList.add('fa-microphone');
+                    break;
+                case 'listening':
+                    statusTextEl.innerText = 'Listening...';
+                    micBtn.classList.add('bg-red-500', 'hover:bg-red-600');
+                    micIcon.classList.add('fa-stop');
+                    micPulse.classList.add('pulse-ring', 'bg-red-500');
+                    break;
+                case 'translating':
+                    statusTextEl.innerText = `Translating to ${targetName}...`;
+                    micBtn.classList.add('bg-slate-400');
+                    micIcon.classList.add('fa-hourglass-half', 'animate-spin-slow');
+                    break;
+                case 'speaking':
+                    statusTextEl.innerText = `Speaking ${targetName}...`;
+                    micBtn.classList.add('bg-brand-500', 'hover:bg-brand-600');
+                    micIcon.classList.add('fa-microphone');
+                    break;
+            }
+        }
+
+        function showError(msg) {
+            errorMessage.innerText = msg;
+            errorToast.classList.remove('-translate-y-24');
+            errorToast.classList.add('translate-y-0');
+            
+            // Auto hide after 5 seconds
+            setTimeout(hideError, 5000);
+        }
+
+        function hideError() {
+            errorToast.classList.remove('translate-y-0');
+            errorToast.classList.add('-translate-y-24');
+        }
+
+        // Initialization
+        updateUIState('idle');
+
+    </script>
+</body>
+</html>
